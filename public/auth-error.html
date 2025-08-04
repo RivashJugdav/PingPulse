@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Authentication Error</title>
+    <link rel="stylesheet" href="./styles/main.css">
+    <style>
+        .error-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 80vh;
+            text-align: center;
+            padding: 20px;
+        }
+        .error-icon {
+            font-size: 50px;
+            color: #e74c3c;
+            margin-bottom: 20px;
+        }
+        .error-message {
+            margin-bottom: 20px;
+            color: #333;
+        }
+        .btn-home {
+            background-color: #3498db;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 5px;
+            text-decoration: none;
+            font-weight: bold;
+            transition: background-color 0.3s;
+        }
+        .btn-home:hover {
+            background-color: #2980b9;
+        }
+    </style>
+</head>
+<body>
+    <div class="error-container">
+        <div class="error-icon">❌</div>
+        <h2>Authentication Error</h2>
+        <p class="error-message" id="errorMessage">Something went wrong during the authentication process.</p>
+        <a href="/" class="btn-home">Go to Homepage</a>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Get error parameter from URL
+            const urlParams = new URLSearchParams(window.location.search);
+            const error = urlParams.get('error');
+            
+            // Set specific error message based on error code
+            const errorMessages = {
+                'csrf_mismatch': 'Security validation failed. Please try again.',
+                'no_code': 'No authorization code received from Google.',
+                'token_exchange': 'Failed to exchange authorization code for access token.',
+                'user_info': 'Failed to fetch user information from Google.',
+                'server_error': 'An unexpected server error occurred during authentication.',
+                'access_denied': 'You denied access to your Google account.'
+            };
+            
+            const errorMessage = errorMessages[error] || 'Something went wrong during the authentication process.';
+            document.getElementById('errorMessage').textContent = errorMessage;
+        });
+    </script>
+</body>
+</html> 

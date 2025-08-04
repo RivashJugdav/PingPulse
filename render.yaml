@@ -1,0 +1,31 @@
+services:
+  - type: web
+    name: ping-service
+    env: node
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MONGODB_URI
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: EMAIL_USER
+        sync: false
+      - key: EMAIL_PASSWORD
+        sync: false
+      - key: NEW_RELIC_LICENSE_KEY
+        sync: false
+    healthCheckPath: /api/v1/ping
+    autoDeploy: true
+    disk:
+      name: logs
+      mountPath: /var/log/ping-service
+      sizeGB: 1

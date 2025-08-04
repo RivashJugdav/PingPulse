@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="jest tests" tests="19" failures="0" errors="0" time="32.265">
+  <testsuite name="Security Test Setup" errors="0" failures="0" skipped="0" timestamp="2025-03-31T09:09:49" time="21.311" tests="3">
+    <testcase classname="Security Test Setup" name="should have security test utilities available" time="0.03">
+    </testcase>
+    <testcase classname="Security Test Setup" name="should generate valid test data" time="0.002">
+    </testcase>
+    <testcase classname="Security Test Setup" name="should check security headers correctly" time="0.001">
+    </testcase>
+  </testsuite>
+  <testsuite name="API Security Tests" errors="0" failures="0" skipped="0" timestamp="2025-03-31T09:09:49" time="21.927" tests="12">
+    <testcase classname="API Security Tests Authentication Tests" name="should reject requests without JWT token" time="0.109">
+    </testcase>
+    <testcase classname="API Security Tests Authentication Tests" name="should reject requests with invalid JWT token" time="0.014">
+    </testcase>
+    <testcase classname="API Security Tests Authentication Tests" name="should handle expired JWT tokens" time="0.012">
+    </testcase>
+    <testcase classname="API Security Tests Authorization Tests" name="should prevent unauthorized access to user-specific data" time="0.028">
+    </testcase>
+    <testcase classname="API Security Tests Authorization Tests" name="should prevent standard users from accessing admin routes" time="0.016">
+    </testcase>
+    <testcase classname="API Security Tests Authorization Tests" name="should allow admin users to access admin routes" time="0.013">
+    </testcase>
+    <testcase classname="API Security Tests Subscription Tests" name="should enforce subscription-based service limits" time="0.042">
+    </testcase>
+    <testcase classname="API Security Tests Subscription Tests" name="should allow premium users to create services with shorter intervals" time="0.016">
+    </testcase>
+    <testcase classname="API Security Tests Input Validation Tests" name="should prevent XSS in user input" time="0.015">
+    </testcase>
+    <testcase classname="API Security Tests Input Validation Tests" name="should validate payment tokens" time="0.018">
+    </testcase>
+    <testcase classname="API Security Tests Rate Limiting Tests" name="should enforce rate limits on sensitive endpoints" time="0.064">
+    </testcase>
+    <testcase classname="API Security Tests Error Handling Tests" name="should handle database errors gracefully" time="0.012">
+    </testcase>
+  </testsuite>
+  <testsuite name="HTTPS Security Tests" errors="0" failures="0" skipped="0" timestamp="2025-03-31T09:09:49" time="30.95" tests="4">
+    <testcase classname="HTTPS Security Tests TLS Configuration" name="should use TLS 1.2 or higher" time="0.06">
+    </testcase>
+    <testcase classname="HTTPS Security Tests TLS Configuration" name="should use secure cipher suites" time="0.03">
+    </testcase>
+    <testcase classname="HTTPS Security Tests Certificate Security" name="should use a valid key pair" time="0.003">
+    </testcase>
+    <testcase classname="HTTPS Security Tests Certificate Security" name="should use secure TLS settings" time="0.003">
+    </testcase>
+  </testsuite>
+</testsuites>

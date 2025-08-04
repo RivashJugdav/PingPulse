@@ -1,0 +1,10 @@
+./node_modules/*
+./.git/*
+./coverage/*
+./__tests__/*
+./src/__tests__/*
+**/*.test.js
+**/*.spec.js
+./jest*
+./logs/*
+*.log 

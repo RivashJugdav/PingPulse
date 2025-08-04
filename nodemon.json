@@ -1,0 +1,28 @@
+{
+  "restartable": "rs",
+  "ignore": [
+    ".git",
+    "node_modules/**/node_modules",
+    "**/__tests__/**",
+    "**/*.test.js",
+    "**/*.spec.js",
+    "coverage",
+    "jest*",
+    "*.log",
+    ".vscode",
+    "logs/*",
+    "data/*"
+  ],
+  "verbose": true,
+  "watch": [
+    "src/",
+    "server.js"
+  ],
+  "execMap": {
+    "js": "node --unhandled-rejections=strict"
+  },
+  "env": {
+    "NODE_ENV": "development"
+  },
+  "ext": "js,json"
+} 

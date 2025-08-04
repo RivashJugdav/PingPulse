@@ -1,0 +1,1484 @@
+// Global variables
+let currentUser = null;
+let currentPage = 'dashboard';
+let serviceData = [];
+let currentServiceId = null;
+let verificationCodes = {}; // Store verification codes temporarily
+let resetCodes = {}; // Store password reset codes temporarily
+
+// Initialize the app
+document.addEventListener('DOMContentLoaded', () => {
+    console.log('App initialized');
+    
+    // Simulate loading screen
+    setTimeout(() => {
+        document.getElementById('loadingScreen').style.display = 'none';
+        document.querySelector('.main-content').style.display = 'block';
+        
+        // Show first-time user modal or dashboard
+        checkLoggedInStatus();
+        
+        // Load dashboard data
+        refreshDashboard();
+        
+        // Set active navigation
+        setActiveNavigation(currentPage);
+    }, 1500);
+    
+    // Initialize tab switching
+    initTabs();
+    
+    // Initialize event listeners
+    initializeEventListeners();
+});
+
+// Initialize event listeners
+function initializeEventListeners() {
+    // Close modals when clicking outside
+    document.querySelectorAll('.modal-backdrop').forEach(modal => {
+        modal.addEventListener('click', function(event) {
+            if (event.target === this) {
+                this.style.display = 'none';
+            }
+        });
+    });
+    
+    // Close dropdown when clicking outside
+    document.addEventListener('click', function(event) {
+        const dropdown = document.getElementById('userDropdown');
+        const userInfo = document.getElementById('userInfo');
+        
+        if (dropdown.style.display === 'block' && 
+            !userInfo.contains(event.target) && 
+            !dropdown.contains(event.target)) {
+            dropdown.style.display = 'none';
+        }
+    });
+    
+    // Setup service search functionality
+    document.getElementById('serviceSearch').addEventListener('input', function() {
+        filterServices(this.value);
+    });
+    
+    // Setup service filter in logs page
+    document.getElementById('serviceFilter').addEventListener('change', function() {
+        filterLogs(this.value);
+    });
+}
+
+// Check if user is logged in
+function checkLoggedInStatus() {
+    // Check if there's a valid token
+    const token = localStorage.getItem('token');
+    
+    // Check if there's a stored user in localStorage
+    if (!currentUser) {
+        try {
+            const storedUser = localStorage.getItem('currentUser');
+            if (storedUser) {
+                currentUser = JSON.parse(storedUser);
+            }
+        } catch (e) {
+            console.warn('Failed to retrieve user from local storage', e);
+        }
+    }
+   
+    // Only consider the user logged in if both token and user info exist
+    if (token && currentUser) {
+        document.getElementById('authButtons').style.display = 'none';
+        document.getElementById('userInfo').style.display = 'flex';
+        document.getElementById('userName').textContent = currentUser.name;
+        document.getElementById('userAvatar').textContent = currentUser.name.charAt(0);
+       
+        // Load user settings
+        document.getElementById('accountName').value = currentUser.name;
+        document.getElementById('accountEmail').value = currentUser.email;
+    } else {
+        // If token is missing but user info exists, or vice versa, clear both for consistency
+        if ((token && !currentUser) || (!token && currentUser)) {
+            localStorage.removeItem('token');
+            localStorage.removeItem('currentUser');
+            currentUser = null;
+        }
+        
+        document.getElementById('authButtons').style.display = 'block';
+        document.getElementById('userInfo').style.display = 'none';
+    }
+}
+
+// Set active navigation link
+function setActiveNavigation(page) {
+    // Remove active class from all navigation links
+    document.querySelectorAll('.nav-links a').forEach(link => {
+        link.classList.remove('active');
+    });
+    
+    // Add active class to current page link
+    const activeLink = document.getElementById(`nav-${page}`);
+    if (activeLink) {
+        activeLink.classList.add('active');
+    }
+}
+
+// Initialize tab switching
+function initTabs() {
+    // Content tabs
+    document.querySelectorAll('.tab').forEach(tab => {
+        tab.addEventListener('click', function() {
+            const tabGroup = this.parentElement;
+            const tabId = this.getAttribute('data-tab');
+            
+            // Remove active class from all tabs in this group
+            tabGroup.querySelectorAll('.tab').forEach(t => {
+                t.classList.remove('active');
+            });
+            
+            // Add active class to clicked tab
+            this.classList.add('active');
+            
+            // Hide all tab content related to this tab group
+            const tabContents = document.querySelectorAll('.tab-content');
+            tabContents.forEach(content => {
+                if (content.id === tabId) {
+                    content.classList.add('active');
+                } else if (content.parentElement === tabGroup.nextElementSibling) {
+                    content.classList.remove('active');
+                }
+            });
+        });
+    });
+    
+    // Modal tabs
+    document.querySelectorAll('[data-modal-tab]').forEach(tab => {
+        tab.addEventListener('click', function() {
+            const tabGroup = this.parentElement;
+            const tabId = this.getAttribute('data-modal-tab');
+            
+            // Remove active class from all tabs in this group
+            tabGroup.querySelectorAll('.tab').forEach(t => {
+                t.classList.remove('active');
+            });
+            
+            // Add active class to clicked tab
+            this.classList.add('active');
+            
+            // Hide all tab content in the modal
+            const modal = tabGroup.closest('.modal');
+            modal.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            
+            // Show selected tab content
+            document.getElementById(tabId).classList.add('active');
+        });
+    });
+}
+
+// Modal functions
+function openModal(modalId) {
+    document.getElementById(modalId).style.display = 'flex';
+}
+
+function closeModal(modalId) {
+    document.getElementById(modalId).style.display = 'none';
+}
+
+// User dropdown toggle
+function toggleDropdown() {
+    const dropdown = document.getElementById('userDropdown');
+    dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
+}
+
+// Dashboard functions
+function refreshDashboard() {
+    if (serviceData.length === 0) {
+        // No services added yet
+        document.getElementById('totalServices').textContent = '0';
+        document.getElementById('uptimePercentage').textContent = '0%';
+        document.getElementById('alertsToday').textContent = '0';
+        
+        // Show empty state messages
+        document.getElementById('recentLogs').innerHTML = `
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i> No recent activity to display. Add a service to get started.
+            </div>
+        `;
+        
+        document.getElementById('serviceStatusList').innerHTML = `
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i> No services added yet. Add your first service to monitor.
+            </div>
+        `;
+        
+        return;
+    }
+    
+    // Update dashboard stats
+    document.getElementById('totalServices').textContent = serviceData.length;
+    
+    // Calculate average uptime
+    const totalUptime = serviceData.reduce((sum, service) => sum + service.uptime, 0);
+    const avgUptime = (totalUptime / serviceData.length).toFixed(1);
+    document.getElementById('uptimePercentage').textContent = `${avgUptime}%`;
+    
+    // Count alerts today
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    let alertsToday = 0;
+    serviceData.forEach(service => {
+        alertsToday += service.logs.filter(log => 
+            log.status === 'error' && new Date(log.timestamp) >= today
+        ).length;
+    });
+    
+    document.getElementById('alertsToday').textContent = alertsToday;
+    
+    // Populate recent logs
+    loadRecentLogs();
+    
+    // Populate service status list
+    loadServiceStatusList();
+}
+
+function loadRecentLogs() {
+    const logsContainer = document.getElementById('recentLogs');
+    logsContainer.innerHTML = '';
+    
+    // Get all logs from all services
+    const allLogs = [];
+    serviceData.forEach(service => {
+        service.logs.forEach(log => {
+            allLogs.push({
+                ...log,
+                serviceName: service.name,
+                serviceId: service.id
+            });
+        });
+    });
+    
+    // Sort by timestamp (most recent first)
+    allLogs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    
+    // Take only the 5 most recent logs
+    const recentLogs = allLogs.slice(0, 5);
+    
+    if (recentLogs.length === 0) {
+        logsContainer.innerHTML = `
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i> No recent activity to display.
+            </div>
+        `;
+        return;
+    }
+    
+    // Create log entries
+    recentLogs.forEach(log => {
+        const logItem = document.createElement('div');
+        logItem.className = `log-item ${log.status}`;
+        
+        const icon = log.status === 'success' ? 
+            '<i class="fas fa-check-circle"></i>' : 
+            '<i class="fas fa-exclamation-circle"></i>';
+        
+        const timeAgo = getTimeAgo(new Date(log.timestamp));
+        
+        logItem.innerHTML = `
+            <div class="log-icon">${icon}</div>
+            <div class="log-content">
+                <div class="log-service">${log.serviceName}</div>
+                <div class="log-message">${log.message}</div>
+                <div class="log-time">${timeAgo}</div>
+            </div>
+        `;
+        
+        logItem.addEventListener('click', () => {
+            currentServiceId = log.serviceId;
+            openServiceDetails();
+        });
+        
+        logsContainer.appendChild(logItem);
+    });
+}
+
+function loadServiceStatusList() {
+    const container = document.getElementById('serviceStatusList');
+    container.innerHTML = '';
+    
+    if (serviceData.length === 0) {
+        container.innerHTML = `
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i> No services added yet. Add your first service to monitor.
+            </div>
+        `;
+        return;
+    }
+    
+    serviceData.forEach(service => {
+        const serviceItem = document.createElement('div');
+        serviceItem.className = 'service-item';
+        
+        const statusClass = service.lastStatus === 'success' ? 'success' : 'error';
+        const statusIcon = service.lastStatus === 'success' ? 
+            '<i class="fas fa-check-circle"></i>' : 
+            '<i class="fas fa-exclamation-circle"></i>';
+        
+        const timeAgo = getTimeAgo(new Date(service.lastPinged));
+        
+        serviceItem.innerHTML = `
+            <div class="service-status ${statusClass}">${statusIcon}</div>
+            <div class="service-info">
+                <div class="service-name">${service.name}</div>
+                <div class="service-url">${service.url}</div>
+            </div>
+            <div class="service-meta">
+                <div class="service-uptime">${service.uptime}% uptime</div>
+                <div class="service-checked">Checked ${timeAgo}</div>
+            </div>
+        `;
+        
+        serviceItem.addEventListener('click', () => {
+            currentServiceId = service.id;
+            openServiceDetails();
+        });
+        
+        container.appendChild(serviceItem);
+    });
+}
+
+// Services page functions
+async function loadServices() {
+    const container = document.getElementById('servicesList');
+    container.innerHTML = '';
+    
+    try {
+        // Fetch services from the API
+        const response = await fetch('/api/ping-services', {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+                // Include auth token for authentication
+                'Authorization': 'Bearer ' + localStorage.getItem('token')
+            }
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || 'Failed to fetch services');
+        }
+        
+        // Get services data from response
+        const services = await response.json();
+        
+        // Update serviceData global variable
+        serviceData = services;
+        
+        if (serviceData.length === 0) {
+            container.innerHTML = `
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle"></i> No services found. Add a service to get started.
+                </div>
+            `;
+            return;
+        }
+        
+        // Update service filter for logs page
+        updateServiceFilter();
+        
+        // Create service items
+        serviceData.forEach(service => {
+            const serviceItem = document.createElement('div');
+            serviceItem.className = 'service-item';
+            
+            const statusClass = service.lastStatus === 'success' ? 'success' : 'error';
+            const statusIcon = service.lastStatus === 'success' ?
+                '<i class="fas fa-check-circle"></i>' :
+                '<i class="fas fa-exclamation-circle"></i>';
+            
+            const statusText = service.lastStatus === 'success' ? 'Online' : 'Offline';
+            const timeAgo = getTimeAgo(new Date(service.lastPinged));
+            
+            serviceItem.innerHTML = `
+                <div class="service-status ${statusClass}">${statusIcon}</div>
+                <div class="service-info">
+                    <div class="service-name">${service.name}</div>
+                    <div class="service-url">${service.url}</div>
+                </div>
+                <div class="service-meta">
+                    <div class="service-uptime">${service.uptime}% uptime</div>
+                    <div class="service-checked">Checked ${timeAgo}</div>
+                </div>
+                <div class="service-status-text ${statusClass}">${statusText}</div>
+            `;
+            
+            serviceItem.addEventListener('click', () => {
+                currentServiceId = service.id;
+                openServiceDetails();
+            });
+            
+            container.appendChild(serviceItem);
+        });
+    } catch (error) {
+        container.innerHTML = `
+            <div class="alert alert-danger">
+                <i class="fas fa-exclamation-triangle"></i> Error loading services: ${error.message}
+            </div>
+        `;
+        console.error('Error loading services:', error);
+    }
+}
+
+function filterServices(query) {
+    const container = document.getElementById('servicesList');
+    container.innerHTML = '';
+    
+    const filteredServices = serviceData.filter(service => 
+        service.name.toLowerCase().includes(query.toLowerCase()) || 
+        service.url.toLowerCase().includes(query.toLowerCase())
+    );
+    
+    if (filteredServices.length === 0) {
+        container.innerHTML = `
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i> No services found matching "${query}".
+            </div>
+        `;
+        return;
+    }
+    
+    filteredServices.forEach(service => {
+        const serviceItem = document.createElement('div');
+        serviceItem.className = 'service-item';
+        
+        const statusClass = service.lastStatus === 'success' ? 'success' : 'error';
+        const statusIcon = service.lastStatus === 'success' ? 
+            '<i class="fas fa-check-circle"></i>' : 
+            '<i class="fas fa-exclamation-circle"></i>';
+        
+        const statusText = service.lastStatus === 'success' ? 'Online' : 'Offline';
+        const timeAgo = getTimeAgo(new Date(service.lastPinged));
+        
+        serviceItem.innerHTML = `
+            <div class="service-status ${statusClass}">${statusIcon}</div>
+            <div class="service-info">
+                <div class="service-name">${service.name}</div>
+                <div class="service-url">${service.url}</div>
+            </div>
+            <div class="service-meta">
+                <div class="service-uptime">${service.uptime}% uptime</div>
+                <div class="service-checked">Checked ${timeAgo}</div>
+            </div>
+            <div class="service-status-text ${statusClass}">${statusText}</div>
+        `;
+        
+        serviceItem.addEventListener('click', () => {
+            currentServiceId = service.id;
+            openServiceDetails();
+        });
+        
+        container.appendChild(serviceItem);
+    });
+}
+
+async function addNewService() {
+    const name = document.getElementById('serviceName').value.trim();
+    const url = document.getElementById('serviceUrl').value.trim();
+    const interval = parseInt(document.getElementById('pingInterval').value);
+   
+    // Validate inputs
+    if (!name) {
+        alert('Please enter a service name');
+        return;
+    }
+   
+    if (!url || !url.startsWith('http')) {
+        alert('Please enter a valid URL starting with http:// or https://');
+        return;
+    }
+   
+    if (isNaN(interval) || interval < 1 || interval > 60) {
+        alert('Please enter a valid ping interval between 1 and 60 minutes');
+        return;
+    }
+   
+    try {
+        // Updated to the correct API endpoint from your routes/ping.js
+        const response = await fetch('/api/ping-services', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                // Include your auth token if needed
+                'Authorization': 'Bearer ' + localStorage.getItem('token')
+            },
+            body: JSON.stringify({
+                name,
+                url,
+                interval
+            })
+        });
+       
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || 'Failed to create service');
+        }
+       
+        // Get the newly created service from the response
+        const newService = await response.json();
+       
+        // Clear form
+        document.getElementById('serviceName').value = '';
+        document.getElementById('serviceUrl').value = '';
+        document.getElementById('pingInterval').value = '';
+       
+        // Reload services from the server
+        loadServices();
+       
+        // Show success message
+        alert(`Service "${name}" added successfully!`);
+    } catch (error) {
+        alert('Error: ' + error.message);
+    }
+}
+
+function updateServiceFilter() {
+    const filterSelect = document.getElementById('serviceFilter');
+    filterSelect.innerHTML = '<option value="all">All Services</option>';
+    
+    serviceData.forEach(service => {
+        const option = document.createElement('option');
+        option.value = service.id;
+        option.textContent = service.name;
+        filterSelect.appendChild(option);
+    });
+}
+
+// Logs page functions
+function loadAllLogs() {
+    updateServiceFilter();
+    
+    const allLogsContainer = document.getElementById('allLogsList');
+    const errorLogsContainer = document.getElementById('errorLogsList');
+    
+    allLogsContainer.innerHTML = '';
+    errorLogsContainer.innerHTML = '';
+    
+    // Get all logs from all services
+    const allLogs = [];
+    const errorLogs = [];
+    
+    serviceData.forEach(service => {
+        service.logs.forEach(log => {
+            const enrichedLog = {
+                ...log,
+                serviceName: service.name,
+                serviceId: service.id
+            };
+            
+            allLogs.push(enrichedLog);
+            
+            if (log.status === 'error') {
+                errorLogs.push(enrichedLog);
+            }
+        });
+    });
+    
+    // Sort by timestamp (most recent first)
+    allLogs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    errorLogs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    
+    // Display all logs
+    if (allLogs.length === 0) {
+        allLogsContainer.innerHTML = `
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i> No logs available. Add a service to start monitoring.
+            </div>
+        `;
+    } else {
+        createLogItems(allLogsContainer, allLogs);
+    }
+    
+    // Display error logs
+    if (errorLogs.length === 0) {
+        errorLogsContainer.innerHTML = `
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i> No error logs found.
+            </div>
+        `;
+    } else {
+        createLogItems(errorLogsContainer, errorLogs);
+    }
+}
+
+function createLogItems(container, logs) {
+    logs.forEach(log => {
+        const logItem = document.createElement('div');
+        logItem.className = `log-item ${log.status}`;
+        
+        const icon = log.status === 'success' ? 
+            '<i class="fas fa-check-circle"></i>' : 
+            '<i class="fas fa-exclamation-circle"></i>';
+        
+        const timestamp = new Date(log.timestamp);
+        const formattedTime = timestamp.toLocaleString();
+        
+        logItem.innerHTML = `
+            <div class="log-icon">${icon}</div>
+            <div class="log-content">
+                <div class="log-service">${log.serviceName}</div>
+                <div class="log-message">${log.message}</div>
+                <div class="log-details">
+                    <span>Response time: ${log.responseTime}ms</span>
+                    <span>Time: ${formattedTime}</span>
+                </div>
+            </div>
+        `;
+        
+        logItem.addEventListener('click', () => {
+            currentServiceId = log.serviceId;
+            openServiceDetails();
+        });
+        
+        container.appendChild(logItem);
+    });
+}
+
+function filterLogs(serviceId) {
+    const allLogsContainer = document.getElementById('allLogsList');
+    const errorLogsContainer = document.getElementById('errorLogsList');
+    
+    allLogsContainer.innerHTML = '';
+    errorLogsContainer.innerHTML = '';
+    
+    // Get all logs from all services
+    const allLogs = [];
+    const errorLogs = [];
+    
+    serviceData.forEach(service => {
+        // Skip if not the selected service (unless all is selected)
+        if (serviceId !== 'all' && service.id !== serviceId) {
+            return;
+        }
+        
+        service.logs.forEach(log => {
+            const enrichedLog = {
+                ...log,
+                serviceName: service.name,
+                serviceId: service.id
+            };
+            
+            allLogs.push(enrichedLog);
+            
+            if (log.status === 'error') {
+                errorLogs.push(enrichedLog);
+            }
+        });
+    });
+    
+    // Sort by timestamp (most recent first)
+    allLogs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    errorLogs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    
+    // Display all logs
+    if (allLogs.length === 0) {
+        allLogsContainer.innerHTML = `
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i> No logs available for this service.
+            </div>
+        `;
+    } else {
+        createLogItems(allLogsContainer, allLogs);
+    }
+    
+    // Display error logs
+    if (errorLogs.length === 0) {
+        errorLogsContainer.innerHTML = `
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i> No error logs found for this service.
+            </div>
+        `;
+    } else {
+        createLogItems(errorLogsContainer, errorLogs);
+    }
+}
+
+// Service details modal functions
+function openServiceDetails() {
+    const service = serviceData.find(s => s.id === currentServiceId);
+    
+    if (!service) {
+        alert('Service not found');
+        return;
+    }
+    
+    // Set modal title
+    document.getElementById('serviceDetailsTitle').textContent = service.name;
+    
+    // Set service info
+    const statusClass = service.lastStatus === 'success' ? 'success' : 'error';
+    const statusText = service.lastStatus === 'success' ? 'Online' : 'Offline';
+    
+    document.getElementById('serviceDetailStatus').className = `service-status-badge ${statusClass}`;
+    document.getElementById('serviceDetailStatus').innerHTML = `
+        <i class="fas fa-${service.lastStatus === 'success' ? 'check' : 'exclamation'}-circle"></i> ${statusText}
+    `;
+    
+    document.getElementById('serviceDetailUrl').textContent = service.url;
+    document.getElementById('serviceDetailInterval').textContent = `${service.interval} minute${service.interval > 1 ? 's' : ''}`;
+    document.getElementById('serviceDetailLastChecked').textContent = getTimeAgo(new Date(service.lastPinged));
+    document.getElementById('serviceDetailUptime').textContent = `${service.uptime}%`;
+    
+    // Load logs
+    const logsContainer = document.getElementById('serviceDetailLogs');
+    logsContainer.innerHTML = '';
+    
+    if (service.logs.length === 0) {
+        logsContainer.innerHTML = `
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i> No logs available for this service.
+            </div>
+        `;
+    } else {
+        const logs = service.logs.map(log => ({
+            ...log,
+            serviceName: service.name,
+            serviceId: service.id
+        }));
+        
+        logs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+        createLogItems(logsContainer, logs);
+    }
+    
+    // Set edit form values
+    document.getElementById('editServiceName').value = service.name;
+    document.getElementById('editServiceUrl').value = service.url;
+    document.getElementById('editServiceInterval').value = service.interval;
+    document.getElementById('editServiceActive').checked = service.active;
+    
+    // Show modal
+    openModal('serviceDetailsModal');
+}
+
+function saveServiceSettings() {
+    const service = serviceData.find(s => s.id === currentServiceId);
+    
+    if (!service) {
+        alert('Service not found');
+        return;
+    }
+    
+    // Get form values
+    const name = document.getElementById('editServiceName').value.trim();
+    const url = document.getElementById('editServiceUrl').value.trim();
+    const interval = parseInt(document.getElementById('editServiceInterval').value);
+    const active = document.getElementById('editServiceActive').checked;
+    
+    // Validate inputs
+    if (!name) {
+        alert('Please enter a service name');
+        return;
+    }
+    
+    if (!url || !url.startsWith('http')) {
+        alert('Please enter a valid URL starting with http:// or https://');
+        return;
+    }
+    
+    if (isNaN(interval) || interval < 1 || interval > 60) {
+        alert('Please enter a valid ping interval between 1 and 60 minutes');
+        return;
+    }
+    
+    // Update service
+    service.name = name;
+    service.url = url;
+    service.interval = interval;
+    service.active = active;
+    
+    // Add log entry for update
+    service.logs.push({
+        timestamp: new Date(),
+        status: 'success',
+        responseTime: 0,
+        message: 'Service settings updated'
+    });
+    
+    // Close modal
+    closeModal('serviceDetailsModal');
+    
+    // Refresh current page
+    if (currentPage === 'dashboard') {
+        refreshDashboard();
+    } else if (currentPage === 'services') {
+        loadServices();
+    } else if (currentPage === 'logs') {
+        loadAllLogs();
+    }
+    
+    // Show success message
+    alert(`Service "${name}" updated successfully!`);
+}
+
+function confirmDeleteService() {
+    openModal('confirmDeleteModal');
+}
+
+function deleteService() {
+    const serviceIndex = serviceData.findIndex(s => s.id === currentServiceId);
+    
+    if (serviceIndex === -1) {
+        alert('Service not found');
+        return;
+    }
+    
+    // Get service name for message
+    const serviceName = serviceData[serviceIndex].name;
+    
+    // Remove service from array
+    serviceData.splice(serviceIndex, 1);
+    
+    // Close modals
+    closeModal('confirmDeleteModal');
+    closeModal('serviceDetailsModal');
+    
+    // Refresh current page
+    if (currentPage === 'dashboard') {
+        refreshDashboard();
+    } else if (currentPage === 'services') {
+        loadServices();
+    } else if (currentPage === 'logs') {
+        loadAllLogs();
+    }
+    
+    // Show success message
+    alert(`Service "${serviceName}" deleted successfully!`);
+}
+
+// User settings functions
+function loadUserSettings() {
+    if (!currentUser) return;
+    
+    document.getElementById('accountName').value = currentUser.name || '';
+    document.getElementById('accountEmail').value = currentUser.email || '';
+    
+    // For demo, we'll assume these are off by default
+    document.getElementById('emailNotifications').checked = currentUser.emailNotifications || false;
+    document.getElementById('smsNotifications').checked = currentUser.smsNotifications || false;
+    document.getElementById('phoneNumber').value = currentUser.phoneNumber || '';
+}
+
+function saveAccountSettings() {
+    if (!currentUser) {
+        alert('You must be logged in to save settings');
+        return;
+    }
+    
+    // Get form values
+    const name = document.getElementById('accountName').value.trim();
+    const email = document.getElementById('accountEmail').value.trim();
+    const emailNotifications = document.getElementById('emailNotifications').checked;
+    const smsNotifications = document.getElementById('smsNotifications').checked;
+    const phoneNumber = document.getElementById('phoneNumber').value.trim();
+    
+    // Validate inputs
+    if (!name) {
+        alert('Please enter your name');
+        return;
+    }
+    
+    if (!email || !email.includes('@')) {
+        alert('Please enter a valid email address');
+        return;
+    }
+    
+    if (smsNotifications && !phoneNumber) {
+        alert('Please enter a phone number for SMS notifications');
+        return;
+    }
+    
+    // Update user
+    currentUser.name = name;
+    currentUser.email = email;
+    currentUser.emailNotifications = emailNotifications;
+    currentUser.smsNotifications = smsNotifications;
+    currentUser.phoneNumber = phoneNumber;
+    
+    // Update UI elements that display user info
+    document.getElementById('userName').textContent = name;
+    document.getElementById('userAvatar').textContent = name.charAt(0);
+    
+    // Show success message
+    alert('Account settings saved successfully!');
+}
+
+function saveNotificationSettings() {
+    if (!currentUser) {
+        alert('You must be logged in to save settings');
+        return;
+    }
+    
+    // Get form values
+    const downtimeAlerts = document.getElementById('downtimeAlerts').checked;
+    const uptimeAlerts = document.getElementById('uptimeAlerts').checked;
+    const weeklyReports = document.getElementById('weeklyReports').checked;
+    const dailyReports = document.getElementById('dailyReports').checked;
+    
+    // Update user
+    currentUser.downtimeAlerts = downtimeAlerts;
+    currentUser.uptimeAlerts = uptimeAlerts;
+    currentUser.weeklyReports = weeklyReports;
+    currentUser.dailyReports = dailyReports;
+    
+    // Show success message
+    alert('Notification settings saved successfully!');
+}
+
+// Utility functions
+function getTimeAgo(date) {
+    const now = new Date();
+    const diffMs = now - date;
+    const diffSec = Math.floor(diffMs / 1000);
+    const diffMin = Math.floor(diffSec / 60);
+    const diffHour = Math.floor(diffMin / 60);
+    const diffDay = Math.floor(diffHour / 24);
+    
+    if (diffDay > 0) {
+        return diffDay === 1 ? '1 day ago' : `${diffDay} days ago`;
+    }
+    
+    if (diffHour > 0) {
+        return diffHour === 1 ? '1 hour ago' : `${diffHour} hours ago`;
+    }
+    
+    if (diffMin > 0) {
+        return diffMin === 1 ? '1 minute ago' : `${diffMin} minutes ago`;
+    }
+    
+    return diffSec <= 5 ? 'just now' : `${diffSec} seconds ago`;
+}
+
+// Function to generate a random verification code
+function generateVerificationCode() {
+    return Math.floor(100000 + Math.random() * 900000); // 6-digit code
+}
+
+// Function to send verification email (mock implementation)
+async function sendVerificationEmail(email, code) {
+    // In a real application, you would send an email using a service like Nodemailer
+    console.log(`Sending verification code ${code} to ${email}`);
+    // Simulate email sending delay
+    return new Promise(resolve => setTimeout(resolve, 1000));
+}
+
+// Login and logout functions
+async function register() {
+    const name = document.getElementById('registerName').value.trim();
+    const email = document.getElementById('registerEmail').value.trim();
+    const password = document.getElementById('registerPassword').value;
+    const confirmPassword = document.getElementById('registerConfirmPassword').value;
+
+    // Validate inputs
+    if (!name || !email || !password || !confirmPassword) {
+        alert('Please fill in all fields.');
+        return;
+    }
+
+    if (password !== confirmPassword) {
+        alert('Passwords do not match.');
+        return;
+    }
+
+    try {
+        // Send registration data to the backend
+        const response = await fetch('/api/auth/register', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ name, email, password }),
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            // Show verification modal
+            openModal('verifyEmailModal');
+            document.getElementById('verifyEmail').textContent = email;
+        } else {
+            alert(data.message || 'Registration failed. Please try again.');
+        }
+    } catch (error) {
+        console.error('Registration error:', error);
+        alert('Registration failed. Please try again.');
+    }
+}
+
+async function verifyEmail() {
+    const code = document.getElementById('verificationCode').value.trim();
+    const email = document.getElementById('verifyEmail').textContent;
+
+    if (!code || code.length !== 6) {
+        alert('Please enter a valid 6-digit code.');
+        return;
+    }
+
+    try {
+        // Send verification code to the backend
+        const response = await fetch('/api/auth/verify', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ email, code }),
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            alert('Email verified successfully!');
+            closeModal('verifyEmailModal');
+            navigateTo('dashboard');
+        } else {
+            alert(data.message || 'Invalid verification code. Please try again.');
+        }
+    } catch (error) {
+        console.error('Verification error:', error);
+        alert('Verification failed. Please try again.');
+    }
+}
+
+async function resendVerificationCode() {
+    const email = document.getElementById('verifyEmail').textContent;
+
+    try {
+        // Send a request to resend the verification code
+        const response = await fetch('/api/auth/resend-code', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ email }),
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            alert('A new verification code has been sent to your email.');
+        } else {
+            alert(data.message || 'Failed to resend verification code. Please try again.');
+        }
+    } catch (error) {
+        console.error('Error resending verification code:', error);
+        alert('Failed to resend verification code. Please try again.');
+    }
+}
+
+async function login() {
+    const email = document.getElementById('loginEmail').value.trim();
+    const password = document.getElementById('loginPassword').value;
+    // Validate inputs
+    if (!email || !email.includes('@')) {
+        alert('Please enter a valid email address');
+        return;
+    }
+    if (!password) {
+        alert('Please enter your password');
+        return;
+    }
+    try {
+        // Show loading indicator or disable button if needed
+        const loginButton = document.querySelector('#loginModal button[type="submit"]');
+        if (loginButton) {
+            loginButton.textContent = 'Logging in...';
+            loginButton.disabled = true;
+        }
+        // Call the authentication API
+        const response = await fetch('/api/auth/login', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ email, password }),
+        });
+        const data = await response.json();
+        console.log('Login response:', data); // Log the response
+        // Reset button state
+        if (loginButton) {
+            loginButton.textContent = 'Login';
+            loginButton.disabled = false;
+        }
+        if (!response.ok) {
+            // Handle authentication failure
+            alert(data.message || 'Login failed. Please check your credentials.');
+            return;
+        }
+        
+        // Store the token in localStorage
+        localStorage.setItem('token', data.token);
+        
+        // Authentication successful
+        // Assuming the API returns user data in the response
+        currentUser = {
+            name: data.name || data.username || email.split('@')[0], // Use returned name or fallback
+            email: email,
+            // Add any other user data returned from the API
+            emailNotifications: data.emailNotifications || false,
+            smsNotifications: data.smsNotifications || false,
+            phoneNumber: data.phoneNumber || ''
+        };
+       
+        // Store in localStorage
+        try {
+            localStorage.setItem('currentUser', JSON.stringify(currentUser));
+        } catch (e) {
+            console.warn('Failed to store user in local storage', e);
+        }
+       
+        // Update UI to reflect logged-in state
+        checkLoggedInStatus();
+       
+        // Close login modal
+        closeModal('loginModal');
+       
+        // Clear form fields
+        document.getElementById('loginEmail').value = '';
+        document.getElementById('loginPassword').value = '';
+       
+        // Navigate to dashboard
+        navigateTo('dashboard');
+       
+        alert(`Welcome back, ${currentUser.name}!`);
+       
+    } catch (error) {
+        console.error('Login error:', error);
+        alert('Login failed. Please try again.');
+       
+        // Reset button state if there was an error
+        const loginButton = document.querySelector('#loginModal button[type="submit"]');
+        if (loginButton) {
+            loginButton.textContent = 'Login';
+            loginButton.disabled = false;
+        }
+    }
+}
+
+function isLoggedIn() {
+    return localStorage.getItem('token') !== null;
+}
+
+// Add this function to your JavaScript file
+function navigateTo(page) {
+    // Hide all pages first
+    const pages = document.querySelectorAll('.page');
+    pages.forEach(pageElement => {
+        pageElement.style.display = 'none';
+    });
+    
+    // Show the requested page
+    const targetPage = document.getElementById(`${page}-page`); // Changed from ${page}Page
+    if (targetPage) {
+        targetPage.style.display = 'block';
+    } else {
+        console.error(`Page "${page}" not found`);
+    }
+    
+    // Update active state in navigation
+    const navLinks = document.querySelectorAll('.nav-links a');
+    navLinks.forEach(link => {
+        link.classList.remove('active');
+        if (link.id === `nav-${page}`) {
+            link.classList.add('active');
+        }
+    });
+}
+
+// Function to switch from login modal to register modal
+function switchToRegister() {
+    closeModal('loginModal'); // Close the login modal
+    openModal('registerModal'); // Open the register modal
+}
+
+// Function to switch from register modal to login modal
+function switchToLogin() {
+    closeModal('registerModal'); // Close the register modal
+    openModal('loginModal'); // Open the login modal
+}
+
+function logout() {
+    // Clear user data
+    currentUser = null;
+    localStorage.removeItem('currentUser');
+    
+    // Clear authentication token
+    localStorage.removeItem('token');
+    
+    // Update UI
+    checkLoggedInStatus();
+    
+    // Navigate to dashboard
+    navigateTo('dashboard');
+    
+    // Close dropdown if open
+    document.getElementById('userDropdown').style.display = 'none';
+}
+
+// Forgot password functions
+
+async function forgotPassword() {
+    const email = document.getElementById('forgotPasswordEmail').value.trim();
+  
+    if (!email || !email.includes('@')) {
+      alert('Please enter a valid email address.');
+      return;
+    }
+  
+    try {
+      // Send a request to the backend to initiate password reset
+      const response = await fetch('/api/auth/forgot-Password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email }),
+      });
+  
+      const data = await response.json();
+  
+      if (response.ok) {
+        alert('Password reset code sent to your email.');
+        openModal('resetPasswordModal'); // Open the reset password modal
+        document.getElementById('resetPasswordEmail').textContent = email;
+      } else {
+        alert(data.message || 'Failed to send password reset code.');
+      }
+    } catch (error) {
+      console.error('Forgot password error:', error);
+      alert('Failed to send password reset code.');
+    }
+  }
+async function sendResetCode() {
+    const email = document.getElementById('forgotPasswordEmail').value.trim();
+
+    if (!email || !email.includes('@')) {
+        alert('Please enter a valid email address');
+        return;
+    }
+
+    try {
+        // Generate reset code
+        const resetCode = generateVerificationCode();
+        resetCodes[email] = resetCode; // Store the code temporarily
+
+        // Send reset code email
+        await sendVerificationEmail(email, resetCode);
+
+        // Show reset code modal
+        openModal('resetPasswordModal');
+        document.getElementById('resetEmail').textContent = email;
+
+    } catch (error) {
+        console.error('Error sending reset code:', error);
+        alert('Failed to send reset code. Please try again.');
+    }
+}
+
+async function resetPassword() {
+    const email = document.getElementById('resetPasswordEmail').textContent;
+    const code = document.getElementById('resetPasswordCode').value.trim();
+    const newPassword = document.getElementById('newPasswordReset').value.trim(); // Trim here
+    const confirmNewPassword = document.getElementById('confirmNewPassword').value.trim(); // Trim here
+
+    // Debug password length
+    console.log('New password length:', newPasswordReset.length);
+
+    if (!code || code.length !== 6) {
+        alert('Please enter a valid 6-digit code.');
+        return;
+    }
+
+    if (!newPassword || newPasswordReset.length < 6) {
+        alert('Please enter a new password with at least 6 characters.');
+        return;
+    }
+
+    if (newPassword !== confirmNewPassword) {
+        alert('Passwords do not match.');
+        return;
+    }
+
+    try {
+        // Send a request to the backend to reset the password
+        const response = await fetch('/api/auth/reset-password', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ email, code, newPassword }), // Send the trimmed password
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            alert('Password reset successfully.');
+            closeModal('resetPasswordModal');
+            navigateTo('dashboard'); // Redirect to the login page
+        } else {
+            alert(data.message || 'Failed to reset password.');
+        }
+    } catch (error) {
+        console.error('Reset password error:', error);
+        alert('Failed to reset password.');
+    }
+}
+
+// Functions for testing and reporting
+function testService() {
+    const service = serviceData.find(s => s.id === currentServiceId);
+    
+    if (!service) {
+        alert('Service not found');
+        return;
+    }
+    
+    // Simulate a ping test
+    const testButton = document.getElementById('testServiceButton');
+    testButton.textContent = 'Testing...';
+    testButton.disabled = true;
+    
+    setTimeout(() => {
+        // Random success/error result for demo
+        const success = Math.random() > 0.3;
+        const responseTime = success ? Math.floor(Math.random() * 400) + 100 : 0;
+        const message = success ? `HTTP 200` : 'Error: Connection timed out';
+        
+        // Add log
+        service.logs.unshift({
+            timestamp: new Date(),
+            status: success ? 'success' : 'error',
+            responseTime: responseTime,
+            message: message
+        });
+        
+        // Update service
+        service.lastPinged = new Date();
+        service.lastStatus = success ? 'success' : 'error';
+        
+        // Update logs in modal
+        const logsContainer = document.getElementById('serviceDetailLogs');
+        logsContainer.innerHTML = '';
+        
+        const logs = service.logs.map(log => ({
+            ...log,
+            serviceName: service.name,
+            serviceId: service.id
+        }));
+        
+        logs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+        createLogItems(logsContainer, logs);
+        
+        // Update service status in modal
+        const statusClass = service.lastStatus === 'success' ? 'success' : 'error';
+        const statusText = service.lastStatus === 'success' ? 'Online' : 'Offline';
+        
+        document.getElementById('serviceDetailStatus').className = `service-status-badge ${statusClass}`;
+        document.getElementById('serviceDetailStatus').innerHTML = `
+            <i class="fas fa-${service.lastStatus === 'success' ? 'check' : 'exclamation'}-circle"></i> ${statusText}
+        `;
+        
+        document.getElementById('serviceDetailLastChecked').textContent = 'just now';
+        
+        // Reset button
+        testButton.textContent = 'Test Now';
+        testButton.disabled = false;
+        
+        // Show result
+        alert(`Test completed: ${success ? 'Success' : 'Failed'}\nResponse time: ${responseTime}ms\nMessage: ${message}`);
+    }, 2000);
+}
+
+function generateReport() {
+    // For demo purposes, we'll just show an alert
+    alert('Report generation feature is not implemented in this demo.');
+}
+
+// Auto-refresh functionality
+let autoRefreshInterval;
+
+function startAutoRefresh() {
+    // Clear existing interval if any
+    if (autoRefreshInterval) {
+        clearInterval(autoRefreshInterval);
+    }
+    
+    // Set new interval
+    autoRefreshInterval = setInterval(() => {
+        if (currentPage === 'dashboard') {
+            refreshDashboard();
+        } else if (currentPage === 'services') {
+            loadServices();
+        } else if (currentPage === 'logs') {
+            loadAllLogs();
+        }
+    }, 60000); // Refresh every minute
+}
+
+// Start auto-refresh when the app loads
+document.addEventListener('DOMContentLoaded', () => {
+    startAutoRefresh();
+});
+
+// Simulate periodic pings for demo purposes
+function simulatePings() {
+    serviceData.forEach(service => {
+        // Only ping active services
+        if (service.active) {
+            // Random success/error result
+            const success = Math.random() > 0.1;
+            const responseTime = success ? Math.floor(Math.random() * 400) + 100 : 0;
+            const message = success ? `HTTP 200` : 'Error: Connection timed out';
+            
+            // Add log
+            service.logs.push({
+                timestamp: new Date(),
+                status: success ? 'success' : 'error',
+                responseTime: responseTime,
+                message: message
+            });
+            
+            // Keep only the last 100 logs
+            if (service.logs.length > 100) {
+                service.logs = service.logs.slice(-100);
+            }
+            
+            // Update service
+            service.lastPinged = new Date();
+            service.lastStatus = success ? 'success' : 'error';
+            
+            // Update uptime
+            const successCount = service.logs.filter(log => log.status === 'success').length;
+            service.uptime = (successCount / service.logs.length * 100).toFixed(1);
+        }
+    });
+    
+    // Refresh UI if needed
+    if (currentPage === 'dashboard') {
+        refreshDashboard();
+    } else if (currentPage === 'services') {
+        loadServices();
+    } else if (currentPage === 'logs') {
+        loadAllLogs();
+    }
+}
+
+// Simulate pings every 30 seconds for demo
+setInterval(simulatePings, 30000);
+
+// Resizing chart support if you plan to add charts
+window.addEventListener('resize', () => {
+    // Refresh charts if any
+    if (currentPage === 'dashboard') {
+        // Implement chart refresh if you add charts later
+    }
+});
+
+// Initialize the app when the DOM is loaded
+// This is already in your code, just noting that it's the entry point

@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; script-src-elem 'self'; script-src-attr 'none'; style-src 'self' cdnjs.cloudflare.com 'unsafe-inline'; connect-src 'self' oauth2.googleapis.com www.googleapis.com; img-src 'self' data: developers.google.com; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none';">
+    <title>Google Authentication</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body class="google-callback-page">
+    <div class="loading-container">
+        <div class="loading-spinner"></div>
+        <h2>Processing your Google login...</h2>
+        <p id="statusMessage">Please wait while we complete your authentication</p>
+    </div>
+
+    <!-- Verification code modal - same as in main app -->
+    <div id="verifyEmailModal" class="modal-backdrop d-none">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Verify Your Email</h3>
+                <button class="close-btn" id="verifyEmailModalClose">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>We've sent a verification code to <span id="verifyEmail"></span>. Please enter the code below:</p>
+                
+                <div class="form-group">
+                    <label for="verificationCode">Verification Code</label>
+                    <input type="text" id="verificationCode" placeholder="Enter 6-digit code" maxlength="6">
+                </div>
+                
+                <button type="button" class="btn btn-primary" id="verifyEmailBtn">Verify</button>
+                <button type="button" class="btn btn-secondary" id="resendVerificationCodeBtn">Resend Code</button>
+                
+                <p class="modal-alt-action">
+                    Didn't receive the code? Check your spam folder or try another email address.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- External script instead of inline -->
+    <script src="/js/google-callback.js"></script>
+</body>
+</html> 
