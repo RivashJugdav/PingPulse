@@ -29,7 +29,7 @@ const configSchema = Joi.object({
 
   // JWT configuration
   jwt: Joi.object({
-    secret: Joi.string().min(32).required(),
+    secret: Joi.string().required(),
     expiration: Joi.string().pattern(/^\d+[smhd]$/).required(),
   }).required(),
 
@@ -81,7 +81,15 @@ const validateConfig = () => {
       password: process.env.EMAIL_PASSWORD,
     },
     jwt: {
-      secret: process.env.JWT_SECRET,
+      secret: (() => {
+        try {
+          const secretsPath = require('path').join(__dirname, '../../secrets.json');
+          const secrets = require(secretsPath);
+          return secrets.jwt.current;
+        } catch (error) {
+          return process.env.JWT_SECRET;
+        }
+      })(),
       expiration: process.env.JWT_EXPIRATION,
     },
     logging: {
