@@ -81,15 +81,7 @@ const validateConfig = () => {
       password: process.env.EMAIL_PASSWORD,
     },
     jwt: {
-      secret: (() => {
-        try {
-          const secretsPath = require('path').join(__dirname, '../../secrets.json');
-          const secrets = require(secretsPath);
-          return secrets.jwt.current;
-        } catch (error) {
-          return process.env.JWT_SECRET;
-        }
-      })(),
+      secret: process.env.JWT_SECRET,
       expiration: process.env.JWT_EXPIRATION,
     },
     logging: {
