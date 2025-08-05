@@ -29,8 +29,8 @@ const configSchema = Joi.object({
 
   // JWT configuration
   jwt: Joi.object({
-    secret: Joi.string().required(),
-    expiration: Joi.string().pattern(/^\d+[smhd]$/).required(),
+    secret: Joi.string().min(1).required(),
+    expiration: Joi.string().pattern(/^\d+[smhd]$/).default('7d'),
   }).required(),
 
   // Logging configuration
@@ -61,12 +61,22 @@ const configSchema = Joi.object({
  * @throws {Error} If validation fails
  */
 const validateConfig = () => {
+  // Set default values for required configuration
+  const defaults = {
+    port: 3000,
+    nodeEnv: 'development',
+    apiVersion: 'v1',
+    requestTimeout: 5000,
+    jwtExpiration: '7d',
+    logLevel: 'info'
+  };
+
   const config = {
     server: {
-      port: parseInt(process.env.PORT, 10),
-      nodeEnv: process.env.NODE_ENV,
-      apiVersion: process.env.API_VERSION,
-      requestTimeout: parseInt(process.env.REQUEST_TIMEOUT, 10),
+      port: parseInt(process.env.PORT, 10) || defaults.port,
+      nodeEnv: process.env.NODE_ENV || defaults.nodeEnv,
+      apiVersion: process.env.API_VERSION || defaults.apiVersion,
+      requestTimeout: parseInt(process.env.REQUEST_TIMEOUT, 10) || defaults.requestTimeout,
       enableSwagger: process.env.ENABLE_SWAGGER === 'true',
     },
     database: {
@@ -81,8 +91,8 @@ const validateConfig = () => {
       password: process.env.EMAIL_PASSWORD,
     },
     jwt: {
-      secret: process.env.JWT_SECRET,
-      expiration: process.env.JWT_EXPIRATION,
+      secret: process.env.JWT_SECRET || process.env.SESSION_SECRET || 'development-secret-key',
+      expiration: process.env.JWT_EXPIRATION || defaults.jwtExpiration,
     },
     logging: {
       level: process.env.LOG_LEVEL,
